@@ -45,7 +45,8 @@ $inputXML = @"
             </Grid>
         </GroupBox>
         <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="0,4,0,0" VerticalAlignment="Top" Width="288" Source="$scriptPath\image.png"/>
-        <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Someting" TextWrapping="Wrap" VerticalAlignment="Top" Width="323" Background="Black" Foreground="Cyan"/>
+        <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
+         AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsInactiveSelectionHighlightEnabled="True" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
 </Window>
 "@       
@@ -143,13 +144,23 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     #region run button
     $synchash.Run_Script_btn.add_click(
     
-    {              
+    {   $Hash = [hashtable]::Synchronized(@{})  
+        $Hash.filename_txtbox = $SyncHash.filename_txtbox.Text
+        $Hash.File_rbtn = $syncHash.File_rbtn.IsChecked
+        $Hash.server_rbtn = $syncHash.server_rbtn.IsChecked
+        $Hash.progress_bar = $syncHash.progress_bar
+        $Hash.Uptime_rbtn = $syncHash.Uptime_rbtn.IsChecked
+        $Hash.Diskspc_rbtn = $syncHash.Diskspc_rbtn.IsChecked
+        $Hash.DiskCln_rbtn = $syncHash.DiskCln_rbtn.IsChecked
+        $Hash.Inventory_rbtn = $syncHash.Inventory_rbtn.IsChecked 
+        $Hash.out_textBox = $SyncHash.out_textBox     
         #region Boe's Additions
         $newRunspace =[runspacefactory]::CreateRunspace()
         $newRunspace.ApartmentState = "STA"
         $newRunspace.ThreadOptions = "ReuseThread"          
         $newRunspace.Open()
         $newRunspace.SessionStateProxy.SetVariable("SyncHash",$SyncHash) 
+        $newRunspace.SessionStateProxy.SetVariable("Hash",$Hash) 
         $PowerShell = [PowerShell]::Create().AddScript({
 Function Update-Window {
         Param (
@@ -265,7 +276,6 @@ end
 {
   try {      $steppablePipeline.End()  } catch {      throw  }}
 }  
-$msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
 Function Get-UPTime{
 
    [CmdletBinding(SupportsShouldProcess=$true, 
@@ -278,7 +288,7 @@ Function Get-UPTime{
                    ValueFromPipelineByPropertyName=$true)]
         [String]$ErrorLog =  "c:\tmp\UptimeError.txt",
         [String]$OutputFile = "c:\tmp\Uptimeoutput.csv",
-        [String]$date = (Get-Date)   
+        [String]$date = (Get-Date)
      )
  
 
@@ -291,59 +301,85 @@ Function Get-UPTime{
             
            try { 
            if ( Test-Connection -ComputerName $server -Count 1 -ErrorAction stop) {
-                            #Write-Verbose $Server
-		                    if ($server -like "*dmz*")
+                            update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+                                                       
+		                    if ($server -like "*mz*")
                             {$wmi = gwmi -class Win32_OperatingSystem -computer $server -Credential $cred -ea stop -ErrorVariable $CError }
 
-                            else {$wmi = gwmi -class Win32_OperatingSystem -computer $server -ea stop -ErrorVariable $CError}
+                            else {$wmi = gwmi -class Win32_OperatingSystem -computer $Server -ea stop -ErrorVariable $CError}
                             
 		                    $LBTime = $wmi.ConvertToDateTime($wmi.Lastbootuptime)
 		                    [TimeSpan]$uptime = New-TimeSpan $LBTime $(get-date)
                                                                      	
-                            $outupt = New-Object -TypeName psobject -Property @{"ComputerName" = $server
+                            $outupt = New-Object -TypeName psobject -Property @{"ComputerName" = $Server
                              "Uptime" = "$($uptime.days) Days $($uptime.hours) Hours $($uptime.minutes) Minutes $($uptime.seconds) Seconds"
                              }
-                            if ($synchash.File_rbtn.IsChecked -eq $true){
+                            if ($Hash.File_rbtn -eq $true){
                            $outupt | select ComputerName, uptime | out-Csv -Path $OutputFile -Append -NoTypeInformation  } else{                    			
 		                $msgbx.Popup("$($uptime.days) Days $($uptime.hours) Hours $($uptime.minutes) Minutes $($uptime.seconds) Seconds",0,"Uptime for $Server",48+0)}
                         }
             
                 }
                 catch 
-                {#Write-Verbose "Failed processing $Server"
+                {
+                update-window -Control out_textBox -Property text -Value ("Failed processing $Server"+"`r`n") -AppendContent
                 $Server | Out-File $ErrorLog -Append
                 }
-                update-window -Control Progress_Bar -Property Value -Value "$synchash.progress_bar.Value+1"
+ 
                 
-		
-                
+               
        		
 
     }
     End
     {
-    if ($synchash.progress_bar.Value -eq $synchash.progress_bar.Maximum){update-window -Control Progress_Bar -Property Foreground -Value 'Green'}
+    
     }
 }
+
+$msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
+
          # update-window -Control Progress_Bar -Property Value -Value 25
-if($SyncHash.File_rbtn.IsChecked -eq $True){$servers = gc $SyncHash.filename_txtbox.Text}else{$servers = $SyncHash.filename_txtbox.Text}
-foreach($server in $servers){Get-UPTime}
+
+   update-window -Control out_textBox -Property text -Value ""
+   Update-Window -Control progress_bar -Property Foreground -Value "Red"
+   Update-Window -Control progress_bar -Property value -Value 0
+    Remove-Item "C:\tmp\UptimeError.txt" -Force -ea SilentlyContinue
+    Remove-Item "C:\tmp\UptimeOutput.csv" -Force -ea SilentlyContinue
+        if (!(Test-Path "c:\tmp\"))
+        {
+        New-Item "c:\tmp" -type directory
+        }
+
+    
+if($Hash.File_rbtn -eq $True){$servers = gc $Hash.filename_txtbox}else{$servers = $Hash.filename_txtbox}
+if ($Hash.Uptime_rbtn -eq $true){ 
+$Hash.progress_max = $servers.count
+$Count = 0 
+foreach ($Server in $Servers)
+{
+$Count ++ 
+Get-UPTime
+update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
+}
+
+update-window -Control Progress_bar -Property Foreground -Value "Green"
+if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Uptimeoutput.csv"}}
+        
+
+
 
 <#                        
 Update-Window -Control StarttextBlock -Property ForeGround -Value White                                                       
 start-sleep -Milliseconds 850
-
 update-window -Control Progress_Bar -Property Value -Value 25
-
 update-window -Control TextBox -property text -value $x -AppendContent
 Update-Window -Control ProcesstextBlock -Property ForeGround -Value White                                                       
 start-sleep -Milliseconds 850
 update-window -Control ProgressBar -Property Value -Value 50
-
 Update-Window -Control FiltertextBlock -Property ForeGround -Value White                                                       
 start-sleep -Milliseconds 500
 update-window -Control ProgressBar -Property Value -Value 75
-
 Update-Window -Control DonetextBlock -Property ForeGround -Value White                                                       
 start-sleep -Milliseconds 200
 update-window -Control ProgressBar -Property Value -Value 100

@@ -1,3 +1,4 @@
+$scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 $Global:syncHash = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
 $newRunspace.ApartmentState = "STA"
@@ -15,7 +16,7 @@ $inputXML = @"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WpfApplication1;assembly=WpfApplication1"
         mc:Ignorable="d"
-        Title="MGI Utility Tools Windows" Height="380.801" Width="647.356">
+        Title="MGI Utility Tools Windows" Height="380.801" Width="627.742">
     <Grid Margin="0,0,-8,-66">
         <Grid.RowDefinitions>
             <RowDefinition/>
@@ -37,14 +38,14 @@ $inputXML = @"
                 <RadioButton x:Name="Inventory_rbtn" Content="Inventory" HorizontalAlignment="Left" Margin="5,63,0,0" VerticalAlignment="Top" IsChecked="False"/>
             </Grid>
         </GroupBox>
-        <GroupBox x:Name="groupBox_invoption" Header="Inventory Option" Height="74" Margin="147,137,384,0" VerticalAlignment="Top" IsEnabled="False">
+        <GroupBox x:Name="groupBox_invoption" Header="Inventory Option" Height="74" Margin="147,137,365,0" VerticalAlignment="Top" IsEnabled="False">
             <Grid HorizontalAlignment="Left" Height="91" VerticalAlignment="Top"
-		  Width="104" Margin="0,0,-2,-12">
+		  Width="141" Margin="0,0,-45,-39">
                 <RadioButton x:Name="inventory_HW" Content="Hardware" HorizontalAlignment="Left" IsChecked="False" Margin="5,5,0,0" VerticalAlignment="Top"/>
                 <RadioButton x:Name="inventory_SW" Content="Software" HorizontalAlignment="Left" IsChecked="False" Margin="5,25,0,0" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
-        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="0,4,0,0" VerticalAlignment="Top" Width="288" Source="$scriptPath\image.png"/>
+        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="30,9,340,0" VerticalAlignment="Top" Width="288" Source="$1\windowsteam.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
          AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
@@ -434,3 +435,9 @@ update-window -Control ProgressBar -Property Value -Value 100
 })
 $psCmd.Runspace = $newRunspace
 $data = $psCmd.BeginInvoke()
+$scriptpath
+Do
+      {
+         Start-Sleep 5
+         
+      } until ($data.IsCompleted -eq $true)

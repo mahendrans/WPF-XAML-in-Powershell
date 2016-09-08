@@ -46,7 +46,7 @@ $inputXML = @"
         </GroupBox>
         <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="0,4,0,0" VerticalAlignment="Top" Width="288" Source="$scriptPath\image.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
-         AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsInactiveSelectionHighlightEnabled="True" IsReadOnly="True" ForceCursor="True"/>
+         AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
 </Window>
 "@       
@@ -172,19 +172,19 @@ Function Update-Window {
 
         # This is kind of a hack, there may be a better way to do this
         If ($Property -eq "Close") {
-            $syncHash.Window.Dispatcher.invoke([action]{$syncHash.Window.Close()},"Normal")
+            $syncHash.Window.Dispatcher.invoke("Normal",[action]{$syncHash.Window.Close()})
             Return
         }
 
         # This updates the control based on the parameters passed to the function
-        $syncHash.$Control.Dispatcher.Invoke([action]{
+        $syncHash.$Control.Dispatcher.Invoke("Normal",[action]{
             # This bit is only really meaningful for the TextBox control, which might be useful for logging progress steps
             If ($PSBoundParameters['AppendContent']) {
                 $syncHash.$Control.AppendText($Value)
             } Else {
                 $syncHash.$Control.$Property = $Value
             }
-        }, "Normal")
+        })
     }
 Function out-CSV {
 [CmdletBinding(DefaultParameterSetName='Delimiter',

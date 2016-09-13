@@ -1,4 +1,3 @@
-$scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 $Global:syncHash = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
 $newRunspace.ApartmentState = "STA"
@@ -45,7 +44,7 @@ $inputXML = @"
                 <RadioButton x:Name="inventory_SW" Content="Software" HorizontalAlignment="Left" IsChecked="False" Margin="5,25,0,0" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
-        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="30,9,340,0" VerticalAlignment="Top" Width="288" Source="$1\windowsteam.png"/>
+        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="-10,10,300,0" VerticalAlignment="Top" Width="300" Source="\\ad\dpt\ioc\Server\MS Windows\mahendran\windowsteam.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
          AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
@@ -119,7 +118,6 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     #endregion Flie browser
 
     #region Single server and multiple server text file selection
-    
     $synchash.File_rbtn.add_click({
     $syncHash.Caption_txtBlock.Text = "File Name"
     $syncHash.browse_btn.IsEnabled = $True
@@ -131,7 +129,6 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     $syncHash.browse_btn.IsEnabled = $false
     $synchash.filename_txtbox.Text = ""
     })
-
     #endregion Single server and multiple server text file selection
 
     #region radio button controls
@@ -337,6 +334,110 @@ Function Get-UPTime{
     
     }
 }
+Function Get-InventoryHW{
+  [CmdletBinding(SupportsShouldProcess=$true, 
+                  ConfirmImpact='Medium')]
+    Param
+    (
+        # Param1 help description
+        [Parameter(
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true)]
+        [ValidateNotNull()]
+        [String]$ErrorLog = "c:\tmp\InventoryHD Error.log",
+        [String]$OutputFile = "c:\tmp\InventoryHD output.csv",
+        [String]$cdrive = 'C$'
+
+        )
+Begin{
+
+}
+Process {      
+$progressbar1.maximum = $servers.count  
+Write-Verbose "$server"
+try{
+
+
+if (Test-Connection $server -Count 1 -ErrorAction stop) {
+
+if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue)
+
+{
+$ip = test-connection $server -count 1 | select ipv4address
+
+#$outhd = gwmi -query "SELECT SystemName,Caption,VolumeName,Size,Freespace FROM win32_logicaldisk WHERE DriveType=3" -ComputerName $server -ErrorAction stop -ErrorVariable $Cerror|
+#Select-Object SystemName,Caption,VolumeName, size, Freespace | select caption, size
+
+$mem = gwmi win32_computersystem -ComputerName $server -ea Stop -ev $Cerror
+
+$os = gwmi win32_operatingsystem -ComputerName $server -ea Stop -ev $Cerror
+
+$bios = gwmi win32_bios -ComputerName $server -ea Stop -ev $Cerror
+
+$Processor = gwmi win32_processor -ComputerName $server | select maxclockspeed -First 1 -ea Stop -ev $Cerror
+
+if($mem.Model -like "Vmware *")
+{
+$dellomsa = "Not Installed"
+$firmwarevers = "Virtual"
+$firmwarename = "Virtual"
+$firmwareip = "Virtual"
+} 
+
+if($mem.Model -notlike "Vmware *") {
+$dell = gwmi -Namespace root\CIMv2\Dell -class Dell_SoftwareFeature -ComputerName $server | select version -ea SilentlyContinue -ev $Cerror
+$dellomsa = $dell.version
+$firmware1 =  gwmi -Namespace root\CIMv2\Dell -class Dell_RemoteAccessServicePort -ComputerName $server | select AccessInfo -ea SilentlyContinue -ev $Cerror
+$firmwareip = $firmware1.accessinfo
+$firmware2 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |  Where-Object {($_.Name -like '*drac*')} | select version -ea SilentlyContinue -ev $Cerror
+$firmware3 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |   Where-Object {($_.Name -like '*drac*')} | select Name -ea SilentlyContinue -ev $Cerror
+$firmwarevers = $firmware2.version
+$firmwarename = $firmware3.name
+}
+
+
+
+
+ $output = [ordered]@{
+'Server Name' = $Server;
+'Description' = $OS.Description;
+'IP Address' = $ip.ipv4address;
+'Operating System' = $os.Caption;
+'ServicePack Level' = $os.CSDVersion;
+'Type' = if($mem.Model -like "Vmware *"){"Virtual"} else {"Physical"};
+'Serial No' = $bios.SerialNumber;
+'Manufacturer' = $mem.Manufacturer;
+'Model' = $mem.Model;
+'Processor' = $mem.NumberOfProcessors;
+'Processor (GHz)' = $Processor.maxclockspeed / 1000;
+'Memory (MBytes)' = $mem.TotalPhysicalMemory / 1mb;
+'OMSA Version' = $dellomsa;
+'iDRAC Version' = $firmwarename;
+'iDrac IP Address' = $firmwareip;
+'Firmware Version' = $firmwarevers
+}
+                            $outputobj = New-Object -TypeName psobject -Property $output                                                                              
+                            export-Csv -Path "$OutputFile" -InputObject $Outputobj -NoTypeInformation -Append
+}
+else {
+Write-Verbose "DMZ Server $server"
+                                  $server,"DMZ" | Out-File $ErrorLog -Append
+}
+}
+}
+catch
+{
+Write-Verbose "Failed processing $server"
+                                  $server,"Error" | Out-File $ErrorLog -Append
+                                                                  
+                                         }
+}
+End{
+$progressbar1.PerformStep()
+if ($progressbar1.value -eq $progressbar1.Maximum){$progressbar1.ForeColor = 'Aqua'}
+           $form.Refresh()
+}
+} 
 
 $msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
 
@@ -354,15 +455,16 @@ $msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
 
     
 if($Hash.File_rbtn -eq $True){$servers = gc $Hash.filename_txtbox}else{$servers = $Hash.filename_txtbox}
-if ($Hash.Uptime_rbtn -eq $true){ 
 $Hash.progress_max = $servers.count
-$Count = 0 
+$Count = 0
+if ($Hash.Uptime_rbtn -eq $true){ 
 foreach ($Server in $Servers)
 {
 $Count ++ 
 Get-UPTime
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
-}
+}}
+elseif () {}
 
 update-window -Control Progress_bar -Property Foreground -Value "Green"
 if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Uptimeoutput.csv"}}
@@ -396,7 +498,6 @@ update-window -Control ProgressBar -Property Value -Value 100
     }
 
     )
-
     #endregion run button
 
 
@@ -422,7 +523,9 @@ update-window -Control ProgressBar -Property Value -Value 100
         $jobCleanup.Flag = $False
 
         #Stop all runspaces
-        $jobCleanup.PowerShell.Dispose()      
+        $jobCleanup.PowerShell.Dispose()    
+        Start-sleep 5
+        Get-process "powershell.exe"  | Stop-Process
     })
     #endregion Window Close 
    
@@ -435,9 +538,6 @@ update-window -Control ProgressBar -Property Value -Value 100
 })
 $psCmd.Runspace = $newRunspace
 $data = $psCmd.BeginInvoke()
-$scriptpath
-Do
-      {
-         Start-Sleep 5
-         
-      } until ($data.IsCompleted -eq $true)
+DO {
+Start-sleep 1
+}UNTIL ($data.IsCompleted -eq $true)

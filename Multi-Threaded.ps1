@@ -1,4 +1,3 @@
-$scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 $Global:syncHash = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
 $newRunspace.ApartmentState = "STA"
@@ -45,7 +44,7 @@ $inputXML = @"
                 <RadioButton x:Name="inventory_SW" Content="Software" HorizontalAlignment="Left" IsChecked="False" Margin="5,25,0,0" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
-        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="30,9,340,0" VerticalAlignment="Top" Width="288" Source="$1\windowsteam.png"/>
+        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="-10,10,300,0" VerticalAlignment="Top" Width="300" Source="\\ad\dpt\ioc\Server\MS Windows\mahendran\windowsteam.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
          AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
@@ -119,7 +118,6 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     #endregion Flie browser
 
     #region Single server and multiple server text file selection
-    
     $synchash.File_rbtn.add_click({
     $syncHash.Caption_txtBlock.Text = "File Name"
     $syncHash.browse_btn.IsEnabled = $True
@@ -131,7 +129,6 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     $syncHash.browse_btn.IsEnabled = $false
     $synchash.filename_txtbox.Text = ""
     })
-
     #endregion Single server and multiple server text file selection
 
     #region radio button controls
@@ -153,8 +150,7 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
         $Hash.Uptime_rbtn = $syncHash.Uptime_rbtn.IsChecked
         $Hash.Diskspc_rbtn = $syncHash.Diskspc_rbtn.IsChecked
         $Hash.DiskCln_rbtn = $syncHash.DiskCln_rbtn.IsChecked
-        $Hash.Inventory_HW = $syncHash.inventory_HW.IsChecked
-        $Hash.Inventory_SW = $syncHash.inventory_SW.IsChecked 
+        $Hash.Inventory_rbtn = $syncHash.Inventory_rbtn.IsChecked 
         $Hash.out_textBox = $SyncHash.out_textBox     
         #region Boe's Additions
         $newRunspace =[runspacefactory]::CreateRunspace()
@@ -508,34 +504,34 @@ Function Clean-Temp{
     )
 
     Begin
-    { 
+    {
+    
+ 
     }
     Process
     {
-try {
-        if (Test-connection $server -Count 1 -ea stop)
+    
+        if (Test-connection $server -Count 1 -ea SilentlyContinue)
         {
 
+try {
 
-
-# Map C drive using your login ID
-if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue) 
+# Map C drive using your ID or dmz ID
+if (Test-Path "\\$server\$cdrive") 
 {
-ndr -Name MyDocs -PSProvider FileSystem -Root "\\$server\$cdrive " -ErrorAction Stop
-ndr -Name MyDocs2 -PSProvider FileSystem -Root "\\$server\$ddrive" -ErrorAction Stop
-update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+ndr -Name MyDocs -PSProvider FileSystem -Root "\\$server\$cdrive"
+ndr -Name MyDocs2 -PSProvider FileSystem -Root "\\$server\$ddrive"
 }
 else
 {
-update-window -Control out_textBox -Property text -Value ("$Server Invalid Credentials"+"`r`n") -AppendContent
-                                  $server,"Invalide Credentials" | Out-File $log -Append
+ndr -Name MyDocs -PSProvider FileSystem -Root "\\$server\$cdrive" -Credential $cred
+ndr -Name MyDocs2 -PSProvider FileSystem -Root "\\$server\$ddrive" -Credential $cred
 }
 
 
 
 Remove-Item -Path "MyDocs:\trace.txt" -force -ea SilentlyContinue
-ls "MyDocs:\$t" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse 
-ls "MyDocs:\$tm" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse
+
 $p = $null
 if (Test-Path "MyDocs:\$p1"){$p = "MyDocs:\$p1"}
 elseif (Test-Path "MyDocs:\$p2"){$p = "MyDocs:\$p2"} 
@@ -548,29 +544,32 @@ elseif (Test-Path "MyDocs2:\$p4"){$p = "MyDocs2:\$p4"}
 if (!($p -eq $null))
 {
 $p
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
 ls "$p\Transactions" | where {$_.PSIsContainer -and $_.Name -ne "log" -and $_.Name -ne "Database" -and $_.Name -ne "events" -and $_.Name -ne "locks"}| Remove-Item -Recurse -Force
 Remove-Item "$p\tmp\Trace.txt" -Force -ea SilentlyContinue
 
 }
 
+ls "MyDocs:\$t" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse 
+ls "MyDocs:\$tm" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse
 
 # Removing map drive
 rdr -Name MyDocs
 rdr -Name MyDocs2
 }
 
-
-
-
-}
-catch {
+catch 
+{
 update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
-"Unable to access $server" | Out-File $log -Append
+$server | Out-File $log -Append
+}
+
+
 }
     }
     End
     {
-    
+   
     }
 }
 
@@ -630,6 +629,10 @@ if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\InventoryHD output.csv"}
 elseif ($Hash.Inventory_SW){$Count ++
 
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"}
+        
+
+
+
         })
         $PowerShell.Runspace = $newRunspace
         [void]$Jobs.Add((
@@ -638,10 +641,11 @@ update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.C
                 Runspace = $PowerShell.BeginInvoke()
             }
         ))
+        #$jobs
+        #$PowerShell.dispose()
     }
 
     )
-
     #endregion run button
 
 
@@ -667,7 +671,9 @@ update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.C
         $jobCleanup.Flag = $False
 
         #Stop all runspaces
-        $jobCleanup.PowerShell.Dispose()      
+        $jobCleanup.PowerShell.Dispose()    
+        Start-sleep 5
+        Get-process "powershell.exe"  | Stop-Process
     })
     #endregion Window Close 
    
@@ -680,11 +686,6 @@ update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.C
 })
 $psCmd.Runspace = $newRunspace
 $data = $psCmd.BeginInvoke()
-$scriptpath
-Do
-      {
-         Start-Sleep 5
-         
-      } until ($data.IsCompleted -eq $true)
-
-
+DO {
+Start-sleep 1
+}UNTIL ($data.IsCompleted -eq $true)

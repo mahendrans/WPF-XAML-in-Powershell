@@ -1,3 +1,4 @@
+$scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 $Global:syncHash = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
 $newRunspace.ApartmentState = "STA"
@@ -44,7 +45,7 @@ $inputXML = @"
                 <RadioButton x:Name="inventory_SW" Content="Software" HorizontalAlignment="Left" IsChecked="False" Margin="5,25,0,0" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
-        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="-10,10,300,0" VerticalAlignment="Top" Width="300" Source="\\ad\dpt\ioc\Server\MS Windows\mahendran\windowsteam.png"/>
+        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="30,9,340,0" VerticalAlignment="Top" Width="288" Source="$1\windowsteam.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
          AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
     </Grid>
@@ -118,6 +119,7 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     #endregion Flie browser
 
     #region Single server and multiple server text file selection
+    
     $synchash.File_rbtn.add_click({
     $syncHash.Caption_txtBlock.Text = "File Name"
     $syncHash.browse_btn.IsEnabled = $True
@@ -129,6 +131,7 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
     $syncHash.browse_btn.IsEnabled = $false
     $synchash.filename_txtbox.Text = ""
     })
+
     #endregion Single server and multiple server text file selection
 
     #region radio button controls
@@ -150,7 +153,8 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
         $Hash.Uptime_rbtn = $syncHash.Uptime_rbtn.IsChecked
         $Hash.Diskspc_rbtn = $syncHash.Diskspc_rbtn.IsChecked
         $Hash.DiskCln_rbtn = $syncHash.DiskCln_rbtn.IsChecked
-        $Hash.Inventory_rbtn = $syncHash.Inventory_rbtn.IsChecked 
+        $Hash.Inventory_HW = $syncHash.inventory_HW.IsChecked
+        $Hash.Inventory_SW = $syncHash.inventory_SW.IsChecked 
         $Hash.out_textBox = $SyncHash.out_textBox     
         #region Boe's Additions
         $newRunspace =[runspacefactory]::CreateRunspace()
@@ -334,7 +338,6 @@ Function Get-UPTime{
     
     }
 }
-
 Function Get-InventoryHW{
   [CmdletBinding(SupportsShouldProcess=$true, 
                   ConfirmImpact='Medium')]
@@ -571,11 +574,7 @@ update-window -Control out_textBox -Property text -Value ("Unable to access $Ser
     }
 }
 
-
-
 $msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
-
-         # update-window -Control Progress_Bar -Property Value -Value 25
 
    update-window -Control out_textBox -Property text -Value ""
    Update-Window -Control progress_bar -Property Foreground -Value "Red"
@@ -590,7 +589,7 @@ $msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
     
 if($Hash.File_rbtn -eq $True){$servers = gc $Hash.filename_txtbox}else{$servers = $Hash.filename_txtbox}
 $Hash.progress_max = $servers.count
-$Count = 0
+$Count = 0 
 if ($Hash.Uptime_rbtn -eq $true){ 
 foreach ($Server in $Servers)
 {
@@ -631,25 +630,6 @@ if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\InventoryHD output.csv"}
 elseif ($Hash.Inventory_SW){$Count ++
 
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"}
-        
-
-
-
-<#                        
-Update-Window -Control StarttextBlock -Property ForeGround -Value White                                                       
-start-sleep -Milliseconds 850
-update-window -Control Progress_Bar -Property Value -Value 25
-update-window -Control TextBox -property text -value $x -AppendContent
-Update-Window -Control ProcesstextBlock -Property ForeGround -Value White                                                       
-start-sleep -Milliseconds 850
-update-window -Control ProgressBar -Property Value -Value 50
-Update-Window -Control FiltertextBlock -Property ForeGround -Value White                                                       
-start-sleep -Milliseconds 500
-update-window -Control ProgressBar -Property Value -Value 75
-Update-Window -Control DonetextBlock -Property ForeGround -Value White                                                       
-start-sleep -Milliseconds 200
-update-window -Control ProgressBar -Property Value -Value 100
-#>
         })
         $PowerShell.Runspace = $newRunspace
         [void]$Jobs.Add((
@@ -661,6 +641,7 @@ update-window -Control ProgressBar -Property Value -Value 100
     }
 
     )
+
     #endregion run button
 
 
@@ -686,9 +667,7 @@ update-window -Control ProgressBar -Property Value -Value 100
         $jobCleanup.Flag = $False
 
         #Stop all runspaces
-        $jobCleanup.PowerShell.Dispose()    
-        Start-sleep 5
-        Get-process "powershell.exe"  | Stop-Process
+        $jobCleanup.PowerShell.Dispose()      
     })
     #endregion Window Close 
    
@@ -701,6 +680,11 @@ update-window -Control ProgressBar -Property Value -Value 100
 })
 $psCmd.Runspace = $newRunspace
 $data = $psCmd.BeginInvoke()
-DO {
-Start-sleep 1
-}UNTIL ($data.IsCompleted -eq $true)
+$scriptpath
+Do
+      {
+         Start-Sleep 5
+         
+      } until ($data.IsCompleted -eq $true)
+
+

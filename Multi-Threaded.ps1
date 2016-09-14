@@ -334,6 +334,7 @@ Function Get-UPTime{
     
     }
 }
+
 Function Get-InventoryHW{
   [CmdletBinding(SupportsShouldProcess=$true, 
                   ConfirmImpact='Medium')]
@@ -353,8 +354,7 @@ Begin{
 
 }
 Process {      
-$progressbar1.maximum = $servers.count  
-Write-Verbose "$server"
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
 try{
 
 
@@ -420,24 +420,158 @@ $firmwarename = $firmware3.name
                             export-Csv -Path "$OutputFile" -InputObject $Outputobj -NoTypeInformation -Append
 }
 else {
-Write-Verbose "DMZ Server $server"
-                                  $server,"DMZ" | Out-File $ErrorLog -Append
+update-window -Control out_textBox -Property text -Value ("$Server Invalid Credentials"+"`r`n") -AppendContent
+                                  $server,"Invalide Credentials" | Out-File $ErrorLog -Append
 }
 }
 }
 catch
 {
-Write-Verbose "Failed processing $server"
+update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
                                   $server,"Error" | Out-File $ErrorLog -Append
                                                                   
                                          }
 }
 End{
-$progressbar1.PerformStep()
-if ($progressbar1.value -eq $progressbar1.Maximum){$progressbar1.ForeColor = 'Aqua'}
-           $form.Refresh()
+
 }
-} 
+}
+Function Get-Diskspc{
+    [CmdletBinding(SupportsShouldProcess=$true, 
+                  ConfirmImpact='Medium')]
+    Param
+    (
+        # Param1 help description
+        [Parameter(
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true)]
+        [ValidateNotNull()]
+        [String]$Logfile = "C:\tmp\logfil_diskspace.txt",
+        [String]$ds = "C:\tmp\Diskspace - Fast.csv",
+        [String]$cdrive = 'C$'
+       
+ 
+        )
+ Begin {
+
+   }  
+ process { 
+        try
+{
+if ( Test-Connection -ComputerName $server -Count 1 -ErrorAction stop) {
+if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue){
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+$dis = gwmi -query "SELECT SystemName,Caption,VolumeName,Size,Freespace FROM win32_logicaldisk WHERE DriveType=3" -ComputerName $server -ErrorAction stop -ErrorVariable $CError|
+Select-Object SystemName,Caption,VolumeName,@{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size/1GB)}},@{Name="Freespace(GB)"; Expression={"{0:N2}" -f ($_.Freespace/1GB)}},@{Name="% Free"; Expression={"{0:N2}" -f (($_.Freespace/$_.Size)*100)}}   
+$dis | out-Csv $ds -Append -NoTypeInformation
+}
+else {
+update-window -Control out_textBox -Property text -Value ("$Server Invalid Credentials"+"`r`n") -AppendContent
+                                  $server,"Invalide Credentials" | Out-File $Logfile -Append
+}
+
+}
+}
+catch
+{
+
+Write-Verbose "there was an erron on processing $server"
+$server | Out-File $LogFile -Append                                                                                             
+                                          }
+
+}
+End {}
+                }
+Function Clean-Temp{
+    [CmdletBinding(SupportsShouldProcess=$true, 
+                  ConfirmImpact='Medium')]
+    Param
+    (
+        [Parameter(
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true)]
+        [string]$cdrive = 'C$',
+        [string]$ddrive = 'D$',
+        [string]$p1 = 'Program Files\BMC BladeLogic\RSC\',
+        [string]$p2 = 'Program Files\BladeLogic\RSC\',
+        [string]$p3 = 'Program Files\BMC Software\BladeLogic\RSCD\',
+        [string]$p4 = 'Program Files\BMC Software\BladeLogic\8.1\RSCD\',
+        [string]$t = 'temp\stage\',
+        [string]$tm = 'tmp\stage\',
+        [string]$log = "c:\tmp\Errorlog_diskcleanup.txt",
+                $olddat = (get-date).AddMonths(-1)
+
+        
+    )
+
+    Begin
+    { 
+    }
+    Process
+    {
+try {
+        if (Test-connection $server -Count 1 -ea stop)
+        {
+
+
+
+# Map C drive using your login ID
+if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue) 
+{
+ndr -Name MyDocs -PSProvider FileSystem -Root "\\$server\$cdrive " -ErrorAction Stop
+ndr -Name MyDocs2 -PSProvider FileSystem -Root "\\$server\$ddrive" -ErrorAction Stop
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+}
+else
+{
+update-window -Control out_textBox -Property text -Value ("$Server Invalid Credentials"+"`r`n") -AppendContent
+                                  $server,"Invalide Credentials" | Out-File $log -Append
+}
+
+
+
+Remove-Item -Path "MyDocs:\trace.txt" -force -ea SilentlyContinue
+ls "MyDocs:\$t" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse 
+ls "MyDocs:\$tm" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse
+$p = $null
+if (Test-Path "MyDocs:\$p1"){$p = "MyDocs:\$p1"}
+elseif (Test-Path "MyDocs:\$p2"){$p = "MyDocs:\$p2"} 
+elseif (Test-Path "MyDocs:\$p3"){$p = "MyDocs:\$p3"} 
+elseif (Test-Path "MyDocs:\$p4"){$p = "MyDocs:\$p4"}
+elseif (Test-Path "MyDocs2:\$p1"){$p = "MyDocs2:\$p1"}
+elseif (Test-Path "MyDocs2:\$p2"){$p = "MyDocs2:\$p2"} 
+elseif (Test-Path "MyDocs2:\$p3"){$p = "MyDocs2:\$p3"} 
+elseif (Test-Path "MyDocs2:\$p4"){$p = "MyDocs2:\$p4"}
+if (!($p -eq $null))
+{
+$p
+ls "$p\Transactions" | where {$_.PSIsContainer -and $_.Name -ne "log" -and $_.Name -ne "Database" -and $_.Name -ne "events" -and $_.Name -ne "locks"}| Remove-Item -Recurse -Force
+Remove-Item "$p\tmp\Trace.txt" -Force -ea SilentlyContinue
+
+}
+
+
+# Removing map drive
+rdr -Name MyDocs
+rdr -Name MyDocs2
+}
+
+
+
+
+}
+catch {
+update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
+"Unable to access $server" | Out-File $log -Append
+}
+    }
+    End
+    {
+    
+    }
+}
+
+
 
 $msgbx = New-Object -ComObject Wscript.Shell -ErrorAction Stop
 
@@ -463,11 +597,40 @@ foreach ($Server in $Servers)
 $Count ++ 
 Get-UPTime
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
-}}
-elseif () {}
-
+}
 update-window -Control Progress_bar -Property Foreground -Value "Green"
 if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Uptimeoutput.csv"}}
+elseif ($Hash.Diskspc_rbtn -eq $true){
+foreach ($Server in $Servers){
+$Count ++
+Get-Diskspc
+update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
+}
+update-window -Control Progress_bar -Property Foreground -Value "Green"
+if ($Hash.File_rbtn -eq $true){Invoke-Item "C:\tmp\Diskspace - Fast.csv"}
+}
+elseif ($Hash.DiskCln_rbtn -eq $true){
+foreach ($Server in $Servers){
+$Count ++
+Clean-Temp
+update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
+}
+update-window -Control Progress_bar -Property Foreground -Value "Green"
+if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Errorlog_diskcleanup.txt"}
+
+}
+elseif ($Hash.Inventory_HW){
+foreach ($Server in $Servers){
+$Count ++
+Get-InventoryHW
+update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
+}
+update-window -Control Progress_bar -Property Foreground -Value "Green"
+if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\InventoryHD output.csv"}
+}
+elseif ($Hash.Inventory_SW){$Count ++
+
+update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"}
         
 
 

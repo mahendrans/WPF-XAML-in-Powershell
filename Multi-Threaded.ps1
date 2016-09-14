@@ -1,3 +1,22 @@
+<#
+	Aurthor:		"Mahendran Somasundaram"
+	Version:		1.0 (14-Sep-2016)
+
+BugFix : 
+
+1. Small fix on error reporting still need to verifiy but its working better than earlier versions
+2. Hardware Inventory now working
+3. Software Iventory now working
+4. "Get details" buttion rename to "Run Script"
+5. Opening output files after running script
+6. New UI and running script and UI in separate threads
+
+Upcoming bugfixes :
+
+1. Error reporting
+2. Completed Popup message
+3. DMZ Button to input dmz password
+#>
 $Global:syncHash = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
 $newRunspace.ApartmentState = "STA"
@@ -151,7 +170,7 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
         $Hash.Diskspc_rbtn = $syncHash.Diskspc_rbtn.IsChecked
         $Hash.DiskCln_rbtn = $syncHash.DiskCln_rbtn.IsChecked
         $Hash.Inventory_HW = $syncHash.inventory_HW.IsChecked
-        $Hash.Inventory_SW = $syncHash.inventory_SW.IsChecked
+        $Hash.Inventory_SW = $syncHash.inventory_SW.IsChecked 
         $Hash.out_textBox = $SyncHash.out_textBox     
         #region Boe's Additions
         $newRunspace =[runspacefactory]::CreateRunspace()
@@ -436,6 +455,111 @@ End{
 
 }
 }
+Function Get-InventorySW{
+[CmdletBinding(SupportsShouldProcess=$true, 
+                  ConfirmImpact='Medium')]	
+Param
+	(
+		[Parameter(
+                   Position=1, 
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true)]
+        [String]$offline = 'c:\tmp\offlinesystems.txt',                
+        [String]$SOFTEXC = 'c:\tmp\softwares.csv'
+        
+)
+	   
+	
+
+  Begin
+
+	{
+       	$LMkeys = "Software\Microsoft\Windows\CurrentVersion\Uninstall","SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+		$LMtype = [Microsoft.Win32.RegistryHive]::LocalMachine
+		$CUkeys = "Software\Microsoft\Windows\CurrentVersion\Uninstall"
+		$CUtype = [Microsoft.Win32.RegistryHive]::CurrentUser
+		$space = '---------------'   
+        $spaceproperty = [ordered] @{
+                        "Name" = $space
+						"Version" = $space
+						"ComputerName" = $space
+						"UninstallCommand" = $space
+						}  
+        $spaceout = New-Object -TypeName psobject -Property $spaceproperty   
+	}
+
+	Process
+	{
+		
+            
+            
+            if(Test-Connection $server -Count 1 -Quiet){
+			$MasterKeys = @()
+			$spaceout | out-csv -path $SOFTEXC -Append -NoTypeInformation
+				
+               
+			
+            update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+			$CURegKey = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($CUtype,$server)
+			$LMRegKey = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey($LMtype,$server)
+			ForEach($Key in $LMkeys)
+			{
+				$RegKey = $LMRegKey.OpenSubkey($key)
+				ForEach($subName in $RegKey.getsubkeynames())
+				{
+					foreach($sub in $RegKey.opensubkey($subName))
+					{
+                        
+						$out = New-Object -TypeName psobject -Property @{
+                        "ComputerName" = $server
+						"Name" = $sub.getvalue("displayname")
+						"SystemComponent" = $sub.getvalue("systemcomponent")
+						"ParentKeyName" = $sub.getvalue("parentkeyname")
+						"Version" = $sub.getvalue("DisplayVersion")
+						"UninstallCommand" = $sub.getvalue("UninstallString")}
+                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Name,Version,ComputerName,UninstallCommand | sort Name) 
+                        if ($out1 -ne $null)
+                        { 
+                        $out1 | out-csv -path $SOFTEXC -Append -ea SilentlyContinue -NoTypeInformation
+                        } 
+                    
+					}
+				}
+			}
+			ForEach($Key in $CUKeys)
+			{
+				$RegKey = $CURegKey.OpenSubkey($Key)
+				If($RegKey -ne $null)
+				{
+					ForEach($subName in $RegKey.getsubkeynames())
+					{
+						foreach($sub in $RegKey.opensubkey($subName))
+						{
+					    $out = New-Object -TypeName psobject -Property @{
+                        "ComputerName" = $server
+						"Name" = $sub.getvalue("displayname")
+						"SystemComponent" = $sub.getvalue("systemcomponent")
+						"ParentKeyName" = $sub.getvalue("parentkeyname")
+						"Version" = $sub.getvalue("DisplayVersion")
+						"UninstallCommand" = $sub.getvalue("UninstallString")}
+
+                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Version,ComputerName,UninstallCommand,Name | sort Name)
+
+					    $out1 | out-csv -path $SOFTEXC -Append -ea SilentlyContinue -NoTypeInformation
+                           
+						}
+					}
+				}
+			
+           }
+		}
+        else {update-window -Control out_textBox -Property text -Value ("Unable to connect $Server"+"`r`n") -AppendContent}
+	}
+	End
+	{
+
+	}
+}
 Function Get-Diskspc{
     [CmdletBinding(SupportsShouldProcess=$true, 
                   ConfirmImpact='Medium')]
@@ -591,6 +715,7 @@ if($Hash.File_rbtn -eq $True){$servers = gc $Hash.filename_txtbox}else{$servers 
 $Hash.progress_max = $servers.count
 $Count = 0 
 if ($Hash.Uptime_rbtn -eq $true){ 
+remove-Item "c:\tmp\Uptimeoutput.csv" -ea SilentlyContinue
 foreach ($Server in $Servers)
 {
 $Count ++ 
@@ -600,36 +725,44 @@ update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.C
 update-window -Control Progress_bar -Property Foreground -Value "Green"
 if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Uptimeoutput.csv"}}
 elseif ($Hash.Diskspc_rbtn -eq $true){
+Remove-Item "C:\tmp\Diskspace - Fast.csv" -ea SilentlyContinue
 foreach ($Server in $Servers){
 $Count ++
 Get-Diskspc
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
 }
 update-window -Control Progress_bar -Property Foreground -Value "Green"
-if ($Hash.File_rbtn -eq $true){Invoke-Item "C:\tmp\Diskspace - Fast.csv"}
+Invoke-Item "C:\tmp\Diskspace - Fast.csv"
 }
 elseif ($Hash.DiskCln_rbtn -eq $true){
+Remove-Item "c:\tmp\Errorlog_diskcleanup.txt" -ea SilentlyContinue
 foreach ($Server in $Servers){
 $Count ++
 Clean-Temp
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
 }
 update-window -Control Progress_bar -Property Foreground -Value "Green"
-if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\Errorlog_diskcleanup.txt"}
+Invoke-Item "c:\tmp\Errorlog_diskcleanup.txt"
 
 }
-elseif ($Hash.Inventory_HW){
+elseif ($Hash.Inventory_HW  -eq $true){
+Remove-Item "c:\tmp\InventoryHD output.csv" -ea SilentlyContinue
 foreach ($Server in $Servers){
 $Count ++
 Get-InventoryHW
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
 }
 update-window -Control Progress_bar -Property Foreground -Value "Green"
-if ($Hash.File_rbtn -eq $true){Invoke-Item "c:\tmp\InventoryHD output.csv"}
+Invoke-Item "c:\tmp\InventoryHD output.csv"
 }
-elseif ($Hash.Inventory_SW){$Count ++
-
+elseif ($Hash.Inventory_SW -eq $true){
+Remove-Item "c:\tmp\softwares.csv" -ea SilentlyContinue
+foreach ($Server in $Servers){
+$Count ++
+Get-InventorySW
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"}
+update-window -Control Progress_bar -Property Foreground -Value "Green"
+Invoke-Item "c:\tmp\softwares.csv"}
         
 
 

@@ -150,7 +150,8 @@ $inputXML = $inputXML -replace 'mc:Ignorable="d"','' -replace "x:N",'N'  -replac
         $Hash.Uptime_rbtn = $syncHash.Uptime_rbtn.IsChecked
         $Hash.Diskspc_rbtn = $syncHash.Diskspc_rbtn.IsChecked
         $Hash.DiskCln_rbtn = $syncHash.DiskCln_rbtn.IsChecked
-        $Hash.Inventory_rbtn = $syncHash.Inventory_rbtn.IsChecked 
+        $Hash.Inventory_HW = $syncHash.inventory_HW.IsChecked
+        $Hash.Inventory_SW = $syncHash.inventory_SW.IsChecked
         $Hash.out_textBox = $SyncHash.out_textBox     
         #region Boe's Additions
         $newRunspace =[runspacefactory]::CreateRunspace()

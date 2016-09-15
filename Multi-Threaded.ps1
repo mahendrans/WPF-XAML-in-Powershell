@@ -37,7 +37,7 @@ $inputXML = @"
         Title="MGI Utility Tools Windows" Height="380.801" Width="627.742">
     <Grid Margin="0,0,-8,-66">
         <Grid.RowDefinitions>
-            <RowDefinition/>
+            <RowDefinition Height="417"/>
         </Grid.RowDefinitions>
         <Button x:Name="Run_Script_btn" Content="Run Script" HorizontalAlignment="Left" Margin="28,306,0,0" VerticalAlignment="Top" Width="75"/>
         <TextBox x:Name="filename_txtbox" HorizontalAlignment="Left" Height="28" Text="$env:computername" Margin="101,70,0,0" VerticalAlignment="Top" Width="116"/>
@@ -63,9 +63,11 @@ $inputXML = @"
                 <RadioButton x:Name="inventory_SW" Content="Software" HorizontalAlignment="Left" IsChecked="False" Margin="5,25,0,0" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
-        <Image x:Name="image" HorizontalAlignment="Center" Height="60" Margin="-10,10,300,0" VerticalAlignment="Top" Width="300" Source="\\ad\dpt\ioc\Server\MS Windows\mahendran\windowsteam.png"/>
         <TextBox x:Name="out_textBox" HorizontalAlignment="Left" Height="318" Margin="299,10,0,0" Text="Log Window" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" 
          AcceptsReturn="True" VerticalAlignment="Top" Width="323" Background="Black" Foreground="#FF00FD00" FontSize="12" IsReadOnly="True" ForceCursor="True"/>
+        <Label x:Name="label" Content="Windows" HorizontalAlignment="Left" Margin="75,16,0,0" VerticalAlignment="Top" FontSize="26" FontWeight="Bold" Foreground="#FFE65700" FontFamily="Calibri"/>
+        <Label x:Name="label1" Content="team" HorizontalAlignment="Left" Margin="178,16,0,0" VerticalAlignment="Top" FontSize="26" FontFamily="Calibri" FontWeight="Bold"/>
+        <Label x:Name="label2" Content="W" HorizontalAlignment="Left" Margin="42,11,0,0" VerticalAlignment="Top" FontSize="30" FontFamily="Marlett" Foreground="#FF15AAF3"/>
     </Grid>
 </Window>
 "@       

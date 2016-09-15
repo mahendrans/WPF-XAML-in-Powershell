@@ -293,6 +293,138 @@ process
 end
 {
   try {      $steppablePipeline.End()  } catch {      throw  }}
+} 
+Function Get-InventoryHW{
+  [CmdletBinding(SupportsShouldProcess=$true, 
+                  ConfirmImpact='Medium')]
+    Param
+    (
+        # Param1 help description
+        [Parameter(
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true)]
+        [ValidateNotNull()]
+        [String]$ErrorLog = "c:\tmp\InventoryHD Error.log",
+        [String]$OutputFile = "c:\tmp\InventoryHD output.csv",
+        [String]$cdrive = 'C$'
+
+        )
+Begin{
+
+}
+Process {      
+
+
+try{
+
+
+if (Test-Connection $server -Count 1 -ErrorAction stop) {
+
+
+if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue)
+
+{
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+$ip = test-connection $server -count 1 | select ipv4address
+
+#$outhd = gwmi -query "SELECT SystemName,Caption,VolumeName,Size,Freespace FROM win32_logicaldisk WHERE DriveType=3" -ComputerName $server -ErrorAction stop -ErrorVariable $Cerror|
+#Select-Object SystemName,Caption,VolumeName, size, Freespace | select caption, size
+
+$mem = gwmi win32_computersystem -ComputerName $server -ea Stop -ev $Cerror
+
+$os = gwmi win32_operatingsystem -ComputerName $server -ea Stop -ev $Cerror
+
+$bios = gwmi win32_bios -ComputerName $server -ea Stop -ev $Cerror
+
+$Processor = gwmi win32_processor -ComputerName $server | select maxclockspeed -First 1 -ea Stop -ev $Cerror
+
+if($mem.Model -like "Vmware *")
+{
+$dellomsa = "Not Installed"
+$firmwarevers = "Virtual"
+$firmwarename = "Virtual"
+$firmwareip = "Virtual"
+} 
+
+if($mem.Model -notlike "Vmware *") {
+$dell = gwmi -Namespace root\CIMv2\Dell -class Dell_SoftwareFeature -ComputerName $server | select version -ea SilentlyContinue -ev $Cerror
+$dellomsa = $dell.version
+$firmware1 =  gwmi -Namespace root\CIMv2\Dell -class Dell_RemoteAccessServicePort -ComputerName $server | select AccessInfo -ea SilentlyContinue -ev $Cerror
+$firmwareip = $firmware1.accessinfo
+$firmware2 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |  Where-Object {($_.Name -like '*drac*')} | select version -ea SilentlyContinue -ev $Cerror
+$firmware3 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |   Where-Object {($_.Name -like '*drac*')} | select Name -ea SilentlyContinue -ev $Cerror
+$firmwarevers = $firmware2.version
+$firmwarename = $firmware3.name
+}
+
+
+$psversion = $PSVersionTable.PSVersion.Major
+
+if($psversion -ge "3"){
+$output =[ordered]@{
+'Server Name' = $Server;
+'Description' = $OS.Description;
+'IP Address' = $ip.ipv4address;
+'Operating System' = $os.Caption;
+'ServicePack Level' = $os.CSDVersion;
+'Type' = if($mem.Model -like "Vmware *"){"Virtual"} else {"Physical"};
+'Serial No' = $bios.SerialNumber;
+'Manufacturer' = $mem.Manufacturer;
+'Model' = $mem.Model;
+'Processor' = $mem.NumberOfProcessors;
+'Processor (GHz)' = $Processor.maxclockspeed / 1000;
+'Memory (MBytes)' = $mem.TotalPhysicalMemory / 1mb;
+'OMSA Version' = $dellomsa;
+'iDRAC Version' = $firmwarename;
+'iDrac IP Address' = $firmwareip;
+'Firmware Version' = $firmwarevers
+}
+}
+else{
+$output =@{
+'Server Name' = $Server;
+'Description' = $OS.Description;
+'IP Address' = $ip.ipv4address;
+'Operating System' = $os.Caption;
+'ServicePack Level' = $os.CSDVersion;
+'Type' = if($mem.Model -like "Vmware *"){"Virtual"} else {"Physical"};
+'Serial No' = $bios.SerialNumber;
+'Manufacturer' = $mem.Manufacturer;
+'Model' = $mem.Model;
+'Processor' = $mem.NumberOfProcessors;
+'Processor (GHz)' = $Processor.maxclockspeed / 1000;
+'Memory (MBytes)' = $mem.TotalPhysicalMemory / 1mb;
+'OMSA Version' = $dellomsa;
+'iDRAC Version' = $firmwarename;
+'iDrac IP Address' = $firmwareip;
+'Firmware Version' = $firmwarevers
+}
+}
+
+
+$outputobj = New-Object -TypeName psobject -Property $output                                                                              
+                            out-Csv -Path "$OutputFile" -InputObject $Outputobj -NoTypeInformation -Append
+}
+                            
+
+else {
+update-window -Control out_textBox -Property text -Value ("Invalid credentials for $Server"+"`r`n") -AppendContent
+
+                                  $server,"DMZ" | Out-File $ErrorLog -Append
+}
+}
+}
+
+catch
+{
+update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
+                                  $server,"Error" | Out-File $ErrorLog -Append
+                                                                  
+                                         }
+}
+End{
+
+}
 }  
 Function Get-UPTime{
 
@@ -354,107 +486,7 @@ Function Get-UPTime{
     
     }
 }
-Function Get-InventoryHW{
-  [CmdletBinding(SupportsShouldProcess=$true, 
-                  ConfirmImpact='Medium')]
-    Param
-    (
-        # Param1 help description
-        [Parameter(
-                   ValueFromPipeline=$true,
-                   ValueFromPipelineByPropertyName=$true)]
-        [ValidateNotNull()]
-        [String]$ErrorLog = "c:\tmp\InventoryHD Error.log",
-        [String]$OutputFile = "c:\tmp\InventoryHD output.csv",
-        [String]$cdrive = 'C$'
 
-        )
-Begin{
-
-}
-Process {      
-update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
-try{
-
-
-if (Test-Connection $server -Count 1 -ErrorAction stop) {
-
-if (Test-Path "\\$server\$cdrive" -ErrorAction SilentlyContinue)
-
-{
-$ip = test-connection $server -count 1 | select ipv4address
-
-#$outhd = gwmi -query "SELECT SystemName,Caption,VolumeName,Size,Freespace FROM win32_logicaldisk WHERE DriveType=3" -ComputerName $server -ErrorAction stop -ErrorVariable $Cerror|
-#Select-Object SystemName,Caption,VolumeName, size, Freespace | select caption, size
-
-$mem = gwmi win32_computersystem -ComputerName $server -ea Stop -ev $Cerror
-
-$os = gwmi win32_operatingsystem -ComputerName $server -ea Stop -ev $Cerror
-
-$bios = gwmi win32_bios -ComputerName $server -ea Stop -ev $Cerror
-
-$Processor = gwmi win32_processor -ComputerName $server | select maxclockspeed -First 1 -ea Stop -ev $Cerror
-
-if($mem.Model -like "Vmware *")
-{
-$dellomsa = "Not Installed"
-$firmwarevers = "Virtual"
-$firmwarename = "Virtual"
-$firmwareip = "Virtual"
-} 
-
-if($mem.Model -notlike "Vmware *") {
-$dell = gwmi -Namespace root\CIMv2\Dell -class Dell_SoftwareFeature -ComputerName $server | select version -ea SilentlyContinue -ev $Cerror
-$dellomsa = $dell.version
-$firmware1 =  gwmi -Namespace root\CIMv2\Dell -class Dell_RemoteAccessServicePort -ComputerName $server | select AccessInfo -ea SilentlyContinue -ev $Cerror
-$firmwareip = $firmware1.accessinfo
-$firmware2 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |  Where-Object {($_.Name -like '*drac*')} | select version -ea SilentlyContinue -ev $Cerror
-$firmware3 =  gwmi -Namespace root\CIMv2\Dell -class Dell_Firmware -ComputerName $server |   Where-Object {($_.Name -like '*drac*')} | select Name -ea SilentlyContinue -ev $Cerror
-$firmwarevers = $firmware2.version
-$firmwarename = $firmware3.name
-}
-
-
-
-
- $output = [ordered]@{
-'Server Name' = $Server;
-'Description' = $OS.Description;
-'IP Address' = $ip.ipv4address;
-'Operating System' = $os.Caption;
-'ServicePack Level' = $os.CSDVersion;
-'Type' = if($mem.Model -like "Vmware *"){"Virtual"} else {"Physical"};
-'Serial No' = $bios.SerialNumber;
-'Manufacturer' = $mem.Manufacturer;
-'Model' = $mem.Model;
-'Processor' = $mem.NumberOfProcessors;
-'Processor (GHz)' = $Processor.maxclockspeed / 1000;
-'Memory (MBytes)' = $mem.TotalPhysicalMemory / 1mb;
-'OMSA Version' = $dellomsa;
-'iDRAC Version' = $firmwarename;
-'iDrac IP Address' = $firmwareip;
-'Firmware Version' = $firmwarevers
-}
-                            $outputobj = New-Object -TypeName psobject -Property $output                                                                              
-                            export-Csv -Path "$OutputFile" -InputObject $Outputobj -NoTypeInformation -Append
-}
-else {
-update-window -Control out_textBox -Property text -Value ("$Server Invalid Credentials"+"`r`n") -AppendContent
-                                  $server,"Invalide Credentials" | Out-File $ErrorLog -Append
-}
-}
-}
-catch
-{
-update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
-                                  $server,"Error" | Out-File $ErrorLog -Append
-                                                                  
-                                         }
-}
-End{
-
-}
-}
 Function Get-InventorySW{
 [CmdletBinding(SupportsShouldProcess=$true, 
                   ConfirmImpact='Medium')]	

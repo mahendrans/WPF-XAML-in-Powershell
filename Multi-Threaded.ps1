@@ -405,7 +405,7 @@ $output =@{
 
 
 $outputobj = New-Object -TypeName psobject -Property $output                                                                              
-                            out-Csv -Path "$OutputFile" -InputObject $Outputobj -NoTypeInformation -Append
+                            $Outputobj | out-Csv -Path "$OutputFile" -NoTypeInformation -Append
 }
                             
 
@@ -488,7 +488,6 @@ Function Get-UPTime{
     
     }
 }
-
 Function Get-InventorySW{
 [CmdletBinding(SupportsShouldProcess=$true, 
                   ConfirmImpact='Medium')]	
@@ -513,12 +512,21 @@ Param
 		$CUkeys = "Software\Microsoft\Windows\CurrentVersion\Uninstall"
 		$CUtype = [Microsoft.Win32.RegistryHive]::CurrentUser
 		$space = '---------------'   
+        $psversion = $PSVersionTable.psversion.major
+        if ($psversion -ge "3"){
         $spaceproperty = [ordered] @{
                         "Name" = $space
 						"Version" = $space
 						"ComputerName" = $space
-						"UninstallCommand" = $space
 						}  
+         }
+         else{
+         $spaceproperty =@{
+                        "Name" = $space
+						"Version" = $space
+						"ComputerName" = $space
+						}
+         }
         $spaceout = New-Object -TypeName psobject -Property $spaceproperty   
 	}
 
@@ -551,7 +559,7 @@ Param
 						"ParentKeyName" = $sub.getvalue("parentkeyname")
 						"Version" = $sub.getvalue("DisplayVersion")
 						"UninstallCommand" = $sub.getvalue("UninstallString")}
-                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Name,Version,ComputerName,UninstallCommand | sort Name) 
+                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Name,Version,ComputerName | sort Name) 
                         if ($out1 -ne $null)
                         { 
                         $out1 | out-csv -path $SOFTEXC -Append -ea SilentlyContinue -NoTypeInformation
@@ -577,7 +585,7 @@ Param
 						"Version" = $sub.getvalue("DisplayVersion")
 						"UninstallCommand" = $sub.getvalue("UninstallString")}
 
-                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Version,ComputerName,UninstallCommand,Name | sort Name)
+                        $out1 = ($out | Where {$_.Name -ne $Null -AND $_.SystemComponent -ne "1" -AND $_.ParentKeyName -eq $Null} | select Name,Version,ComputerName | sort Name)
 
 					    $out1 | out-csv -path $SOFTEXC -Append -ea SilentlyContinue -NoTypeInformation
                            
@@ -654,10 +662,14 @@ Function Clean-Temp{
         [string]$p2 = 'Program Files\BladeLogic\RSC\',
         [string]$p3 = 'Program Files\BMC Software\BladeLogic\RSCD\',
         [string]$p4 = 'Program Files\BMC Software\BladeLogic\8.1\RSCD\',
+        [string]$l1 = 'C:\Users\BladeLogicRSCD\AppData\Local\Temp',
+        [string]$l2 = "C:\Users\BladeLogicRSCD.$server\AppData\Local\Temp",
+        [string]$l3 = "C:\Users\BladeLogicRSCD.$server.000\AppData\Local\Temp",
         [string]$t = 'temp\stage\',
         [string]$tm = 'tmp\stage\',
         [string]$log = "c:\tmp\Errorlog_diskcleanup.txt",
-                $olddat = (get-date).AddMonths(-1)
+                $olddat = (get-date).AddMonths(-1),
+                $server
 
         
     )
@@ -665,15 +677,25 @@ Function Clean-Temp{
     Begin
     {
     
- 
+    $virusdefs = "\\$server\C$\ProgramData\Symantec\Definitions\VirusDefs"
+    $defs = ls $virusdefs
     }
     Process
     {
-    
+    try {
         if (Test-connection $server -Count 1 -ea SilentlyContinue)
         {
 
-try {
+
+update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+            
+           $def1 = $defs -like "2011*" | select -First 1
+           $def2 = $defs -like "2011*" | select -Skip 1 -First 1
+           $def3 = $defs -like "2011*" | select -Skip 2 -First 1
+           
+           ls "$virusdefs\$def1" | Remove-Item -Recurse -Force
+           ls "$virusdefs\$def2" | Remove-Item -Recurse -Force
+           ls "$virusdefs\$def3" | Remove-Item -Recurse -Force
 
 # Map C drive using your ID or dmz ID
 if (Test-Path "\\$server\$cdrive") 
@@ -702,12 +724,21 @@ elseif (Test-Path "MyDocs2:\$p3"){$p = "MyDocs2:\$p3"}
 elseif (Test-Path "MyDocs2:\$p4"){$p = "MyDocs2:\$p4"}
 if (!($p -eq $null))
 {
-$p
-update-window -Control out_textBox -Property text -Value ("$Server"+"`r`n") -AppendContent
+
 ls "$p\Transactions" | where {$_.PSIsContainer -and $_.Name -ne "log" -and $_.Name -ne "Database" -and $_.Name -ne "events" -and $_.Name -ne "locks"}| Remove-Item -Recurse -Force
 Remove-Item "$p\tmp\Trace.txt" -Force -ea SilentlyContinue
 
 }
+
+$l = $null
+if (Test-Path "MyDocsL:\$l1"){$l = "MyDocs:\$l1"}
+elseif (Test-Path "MyDocsL:\$l2"){$l = "MyDocs:\$l2"} 
+elseif (Test-Path "MyDocsL:\$l3"){$l = "MyDocs:\$l3"} 
+if (!($l -eq $null))
+{
+ls $l | Remove-Item -Recurse -Force
+}
+
 
 ls "MyDocs:\$t" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse 
 ls "MyDocs:\$tm" -Recurse -Force -ea SilentlyContinue | Remove-Item -force -recurse
@@ -717,13 +748,14 @@ rdr -Name MyDocs
 rdr -Name MyDocs2
 }
 
+
+
+
+}
 catch 
 {
 update-window -Control out_textBox -Property text -Value ("Unable to access $Server"+"`r`n") -AppendContent
 $server | Out-File $log -Append
-}
-
-
 }
     }
     End
@@ -772,7 +804,7 @@ elseif ($Hash.DiskCln_rbtn -eq $true){
 Remove-Item "c:\tmp\Errorlog_diskcleanup.txt" -ea SilentlyContinue
 foreach ($Server in $Servers){
 $Count ++
-Clean-Temp
+Clean-Temp -server $Server
 update-window -Control Progress_bar -Property Value -Value "$(($Count/$Servers.Count)*100)"
 }
 update-window -Control Progress_bar -Property Foreground -Value "Green"
@@ -840,7 +872,7 @@ Invoke-Item "c:\tmp\softwares.csv"}
 
         #Stop all runspaces
         $jobCleanup.PowerShell.Dispose()    
-        Start-sleep 5
+        Start-sleep 1
         Get-process "powershell.exe"  | Stop-Process
     })
     #endregion Window Close 

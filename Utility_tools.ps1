@@ -75,8 +75,8 @@ $flbrsrbtn.Top = 4
 $flbrsrbtn.Left = 225
 $flbrsrbtn.width = 50
 $flbrsrbtn.Enabled = $fale
-$ue = "mgiadmin"
-$na = "429C0br@j3t"
+$ue = ""
+$na = ""
 $secstr = New-Object -TypeName System.Security.SecureString
 $na.ToCharArray() | ForEach-Object {$secstr.AppendChar($_)}
 $cred = new-object -typename System.Management.Automation.PSCredential `
